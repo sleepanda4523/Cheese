@@ -1,2 +1,2 @@
-# Cheese
-check attendance Discord Bot by Cheese's Server
+# Utopia
+check attendance Discord Bot by Utopia Server
