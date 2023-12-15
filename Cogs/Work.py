@@ -5,5 +5,5 @@ class Work(commands.Cog):
         self.bot = bot
         
         
-def setup(bot):
-    bot.add_cog(Work(bot))
+async def setup(bot):
+    await bot.add_cog(Work(bot))
