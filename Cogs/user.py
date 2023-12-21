@@ -99,7 +99,11 @@ class User(commands.Cog):
         db_close(con, cur)
         return
         
-        
+    @role.error
+    async def role_handler(self, ctx, error):
+        if isinstance(error, commands.BadArgument):
+            embed = discord.Embed(title="경고", description="잘못된 형식의 인자 값입니다. \n `$역할 [현재 닉네임(문자)] [나이(숫자)] [성별(F or M)]` 형태로 입력해주세요.", color=0xFE2E2E)
+            return await ctx.send(embed=embed)  
         
 async def setup(bot: commands.Bot):
     await bot.add_cog(User(bot))
