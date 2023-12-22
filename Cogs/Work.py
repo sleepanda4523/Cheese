@@ -60,6 +60,7 @@ class Work(commands.Cog):
         sql = f'SELECT EXISTS ( SELECT * FROM users WHERE userid = {userid} );'
         cur.execute(sql)
         if cur.fetchall()[0][0] == 0:
+            db_close(conn, cur)
             embed = discord.Embed(title="에러", description="등록된 유저가 없습니다. \n `$역할` 명령어를 사용해주세요!", color=0xFE2E2E)
             return await ctx.send(embed=embed)
         else:
@@ -94,6 +95,7 @@ class Work(commands.Cog):
                 conn.commit()
                 embed = discord.Embed(title="출석 완료", description=f"{name.mention} 출석 완료. \n 현재 출석 횟수 : {count+1} ", color=0x00FFFF)
                 return await msg.edit(embed=embed)
+            db_close(conn, cur)
             embed = discord.Embed(title="출석 완료", description=f"{name.mention} 출석 완료. \n 현재 출석 횟수 : {count} ", color=0x00FFFF)
             return await ctx.send(embed=embed)
     
@@ -108,6 +110,7 @@ class Work(commands.Cog):
         sql = f'SELECT EXISTS ( SELECT * FROM users WHERE userid = {userid} );'
         cur.execute(sql)
         if cur.fetchall()[0][0] == 0:
+            db_close(conn, cur)
             embed = discord.Embed(title="에러", description="등록된 유저가 없습니다. \n `$역할` 명령어를 사용해주세요!", color=0xFE2E2E)
             return await ctx.send(embed=embed)
         else:
@@ -121,19 +124,76 @@ class Work(commands.Cog):
             sql = f'SELECT EXISTS ( SELECT * FROM {self.table_name} WHERE userid = {userid} );'
             cur.execute(sql)
             if cur.fetchall()[0][0] == 0:
+                db_close(conn, cur)
                 embed = discord.Embed(title="에러", description="출근 기록이 없습니다. \n `$출근` 명령어를 먼저 사용해주세요!", color=0xFE2E2E)
                 return await ctx.send(embed=embed)
             sql = f'SELECT check_a FROM {self.table_name} WHERE userid = {userid}'
             cur.execute(sql)
             if int(cur.fetchall()[0][0]) == 0:
+                db_close(conn, cur)
                 embed = discord.Embed(title="에러", description="출근 기록이 없습니다. \n `$출근` 명령어를 먼저 사용해주세요!", color=0xFE2E2E)
                 return await ctx.send(embed=embed)
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             sql = f'UPDATE {self.table_name} SET check_a=0,  last_quit="{now}" WHERE userid = {userid}'
             cur.execute(sql)
             conn.commit()
+            db_close(conn, cur)
             embed = discord.Embed(title="퇴근 완료", description=f"{name.mention} 퇴근 완료. ", color=0x00FFFF)
             return await ctx.send(embed=embed)
             
+    @commands.command(name='기록삭제')
+    async def delete_work(self, ctx, name:discord.Member=None):
+        if name is None:
+            name = ctx.author
+            
+        userid = name.id
+        nickname = name.nick if name.nick else name.name
+        conn, cur = connect()
+        sql = f'SELECT EXISTS ( SELECT * FROM users WHERE userid = {userid} );'
+        cur.execute(sql)
+        if cur.fetchall()[0][0] == 0:
+            embed = discord.Embed(title="에러", description="등록된 유저가 없습니다. \n `$역할` 명령어를 사용해주세요!", color=0xFE2E2E)
+            return await ctx.send(embed=embed)
+        # name update
+        sql = f'SELECT name FROM users WHERE userid = {userid}'
+        cur.execute(sql)
+        if str(cur.fetchall()[0][0]) != nickname:
+            sql = f'UPDATE users SET name="{nickname}" WHERE userid = {userid}'
+            cur.execute(sql)
+            conn.commit()
+        sql = f'SELECT EXISTS ( SELECT * FROM {self.table_name} WHERE userid = {userid} );'
+        cur.execute(sql)
+        if cur.fetchall()[0][0] == 0:
+            embed = discord.Embed(title="에러", description="출퇴근 기록이 없습니다.", color=0xFE2E2E)
+            return await ctx.send(embed=embed)
+        else :
+            embed = discord.Embed(title="확인", description=f"정말 {name.mention} 유저의 출퇴근 기록을 삭제하실껀가요?\n (아래 이모지를 선택해주세요!)", color=0xFACC2E)
+            check_msg = await ctx.send(embed=embed)
+            await check_msg.add_reaction("⭕")
+            await check_msg.add_reaction("❌")
+            
+            def check(reaction, user):
+                return user == ctx.message.author and reaction.message.channel == ctx.message.channel and reaction.message.id == check_msg.id
+            
+            try:
+                reaction, user = await self.bot.wait_for('reaction_add', timeout=60.0, check=check)
+            except asyncio.TimeoutError:
+                embed = discord.Embed(title="에러", description=f"시간 초과. {ctx.author}님 다시 시도해주세요.", color=0xFE2E2E)
+                return await ctx.send(embed=embed)
+            else:
+                if str(reaction.emoji) == '⭕':
+                    sql = f'DELETE FROM {self.table_name} WHERE userid = {userid}'
+                    cur.execute(sql)
+                    conn.commit()
+                    db_close(conn, cur)
+                    await check_msg.clear_reactions()
+                    embed = discord.Embed(title="출퇴근 기록 삭제 완료", description=f"{name.mention}유저의 출퇴근 기록을 삭제하였습니다!", color=0x00FFFF)
+                    return await check_msg.edit(embed=embed)
+                elif str(reaction.emoji) == '❌':
+                    db_close(conn, cur)
+                    await check_msg.clear_reactions()
+                    embed = discord.Embed(title="출퇴근 기록 삭제 취소", description=f"해당 기능을 취소하셨어요..!", color=0x00FFFF)
+                    return await check_msg.edit(embed=embed)
+        return
 async def setup(bot):
     await bot.add_cog(Work(bot))

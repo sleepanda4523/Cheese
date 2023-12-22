@@ -115,7 +115,6 @@ class User(commands.Cog):
             await check_msg.add_reaction("❌")
             
             def check(reaction, user):
-                print(user, ctx.message)
                 return user == ctx.message.author and reaction.message.channel == ctx.message.channel and reaction.message.id == check_msg.id
             
             try:
