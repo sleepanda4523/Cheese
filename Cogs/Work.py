@@ -49,7 +49,7 @@ class Work(commands.Cog):
         self.df = change_df(conn, self.table_name)
         db_close(conn, cur)
 
-    @commands.command(name='출석')
+    @commands.command(name='출근')
     async def attendance(self, ctx, name:discord.Member=None):
         if name is None:
             name = ctx.author
@@ -96,7 +96,44 @@ class Work(commands.Cog):
                 return await msg.edit(embed=embed)
             embed = discord.Embed(title="출석 완료", description=f"{name.mention} 출석 완료. \n 현재 출석 횟수 : {count} ", color=0x00FFFF)
             return await ctx.send(embed=embed)
-                
-        
+    
+    @commands.command(name='퇴근')
+    async def leave_work(self, ctx, name:discord.Member=None):
+        if name is None:
+            name = ctx.author
+            
+        userid = name.id
+        nickname = name.nick if name.nick else name.name
+        conn, cur = connect()
+        sql = f'SELECT EXISTS ( SELECT * FROM users WHERE userid = {userid} );'
+        cur.execute(sql)
+        if cur.fetchall()[0][0] == 0:
+            embed = discord.Embed(title="에러", description="등록된 유저가 없습니다. \n `$역할` 명령어를 사용해주세요!", color=0xFE2E2E)
+            return await ctx.send(embed=embed)
+        else:
+            # name update
+            sql = f'SELECT name FROM users WHERE userid = {userid}'
+            cur.execute(sql)
+            if str(cur.fetchall()[0][0]) != nickname:
+                sql = f'UPDATE users SET name="{nickname}" WHERE userid = {userid}'
+                cur.execute(sql)
+                conn.commit()
+            sql = f'SELECT EXISTS ( SELECT * FROM {self.table_name} WHERE userid = {userid} );'
+            cur.execute(sql)
+            if cur.fetchall()[0][0] == 0:
+                embed = discord.Embed(title="에러", description="출근 기록이 없습니다. \n `$출근` 명령어를 먼저 사용해주세요!", color=0xFE2E2E)
+                return await ctx.send(embed=embed)
+            sql = f'SELECT check_a FROM {self.table_name} WHERE userid = {userid}'
+            cur.execute(sql)
+            if int(cur.fetchall()[0][0]) == 0:
+                embed = discord.Embed(title="에러", description="출근 기록이 없습니다. \n `$출근` 명령어를 먼저 사용해주세요!", color=0xFE2E2E)
+                return await ctx.send(embed=embed)
+            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            sql = f'UPDATE {self.table_name} SET check_a=0,  last_quit="{now}" WHERE userid = {userid}'
+            cur.execute(sql)
+            conn.commit()
+            embed = discord.Embed(title="퇴근 완료", description=f"{name.mention} 퇴근 완료. ", color=0x00FFFF)
+            return await ctx.send(embed=embed)
+            
 async def setup(bot):
     await bot.add_cog(Work(bot))
